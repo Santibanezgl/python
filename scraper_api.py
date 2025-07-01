@@ -28,7 +28,6 @@ def scrape_website():
         soup = BeautifulSoup(response.content, 'html.parser')
         scraped_data = []
 
-        # Posibles selectores que suelen contener posts o noticias
         candidate_selectors = [
             'article',
             'div.post',
@@ -41,54 +40,53 @@ def scrape_website():
             'div.item',
             'section.article',
             'section.post',
-            # Agrega más si quieres
         ]
 
-        # Intentamos recolectar entradas de cualquiera de estos selectores
         entries = []
         for sel in candidate_selectors:
             found = soup.select(sel)
             if found:
                 entries.extend(found)
 
-        # Si no encontró con esos selectores, por si acaso, intenta con todos los enlaces dentro de un contenedor principal
         if not entries:
-            # Busca el contenedor principal, por ejemplo div#main o div.content
             main_container = soup.select_one('main, #main, #content, .content')
             if main_container:
-                entries = main_container.find_all('a', href=True)
-
-                # En este caso vamos a extraer títulos de texto de los enlaces
-                for a in entries:
-                    title = a.get_text(strip=True)
+                links = main_container.find_all('a', href=True)
+                for a in links:
+                    title = a.get_text(separator=' ', strip=True)
+                    title = re.sub(r'\s+', ' ', title)
                     if title:
-                        link = urljoin(url_to_scrape, a['href'])
+                        link = urljoin(url_to_scrape, a['href']).strip()
                         scraped_data.append({"title": title, "link": link})
 
         else:
-            # Recorremos las entradas encontradas para extraer título y link
             for entry in entries:
-                # Buscamos títulos en encabezados h1-h4
                 title_element = None
                 for tag in ['h1', 'h2', 'h3', 'h4']:
                     title_element = entry.find(tag)
                     if title_element:
                         break
-                
-                # Si no hay título en encabezado, probamos algún texto en enlaces
+
                 if not title_element:
                     title_element = entry.find('a')
 
-                # Buscamos link en el primer <a> con href
                 link_element = entry.find('a', href=True)
 
                 if title_element and link_element:
-                    title = title_element.get_text(strip=True)
-                    link = urljoin(url_to_scrape, link_element['href'])
+                    # Texto limpio del título
+                    title = title_element.get_text(separator=' ', strip=True)
+                    title = re.sub(r'\s+', ' ', title)
+
+                    # Link limpio
+                    link = urljoin(url_to_scrape, link_element['href']).strip()
+                    # Opcional: eliminar anclas y query params
+                    link = link.split('#')[0]
+                    # link = link.split('?')[0]  # Si quieres eliminar query params también
+
                     if title and link:
                         scraped_data.append({"title": title, "link": link})
 
-        # Quitar duplicados (por si acaso)
+        # Quitar duplicados
         unique = []
         seen = set()
         for item in scraped_data:
