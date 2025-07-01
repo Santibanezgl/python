@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Comment
 from urllib.parse import urljoin
 import re
 
@@ -26,6 +26,15 @@ def scrape_website():
         response.raise_for_status()
 
         soup = BeautifulSoup(response.content, 'html.parser')
+
+        # Limpiar estilos, scripts, noscript y comentarios para evitar CSS y JS
+        for tag in soup(['style', 'script', 'noscript']):
+            tag.decompose()
+
+        comments = soup.find_all(string=lambda text: isinstance(text, Comment))
+        for c in comments:
+            c.extract()
+
         scraped_data = []
 
         candidate_selectors = [
@@ -73,20 +82,17 @@ def scrape_website():
                 link_element = entry.find('a', href=True)
 
                 if title_element and link_element:
-                    # Texto limpio del título
                     title = title_element.get_text(separator=' ', strip=True)
                     title = re.sub(r'\s+', ' ', title)
 
-                    # Link limpio
                     link = urljoin(url_to_scrape, link_element['href']).strip()
-                    # Opcional: eliminar anclas y query params
-                    link = link.split('#')[0]
-                    # link = link.split('?')[0]  # Si quieres eliminar query params también
+                    link = link.split('#')[0]  # eliminar anclas
+                    # link = link.split('?')[0]  # si quieres eliminar query params también
 
                     if title and link:
                         scraped_data.append({"title": title, "link": link})
 
-        # Quitar duplicados
+        # Eliminar duplicados
         unique = []
         seen = set()
         for item in scraped_data:
